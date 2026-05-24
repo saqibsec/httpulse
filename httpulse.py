@@ -175,7 +175,7 @@ AUTHOR:
     )
     parser.add_argument("-f", "--file", metavar="FILE", help="Path to .txt file with URLs (one per line)")
     parser.add_argument("-u", "--url", metavar="URL", help="Single URL to check directly")
-    parser.add_argument("-o", "--output", metavar="FILE", default="results.txt", help="Output file (default: results.txt)")
+    parser.add_argument("-o", "--output", metavar="FILE", default=None, help="Output file (default: results_YYYYMMDD_HHMMSS.txt)")
     parser.add_argument("-t", "--threads", metavar="NUM", type=int, default=10, help="Concurrent threads (default: 10)")
     parser.add_argument("--timeout", metavar="SEC", type=float, default=5.0, help="Request timeout in seconds (default: 5)")
     parser.add_argument("--version", action="version", version="httpulse v" + VERSION + " by " + AUTHOR)
@@ -222,6 +222,11 @@ def main():
         if u not in seen:
             seen.add(u)
             unique_urls.append(u)
+
+    # Auto-generate timestamped filename if not specified
+    if args.output is None:
+        timestamp_file = datetime.now().strftime("%Y%m%d_%H%M%S")
+        args.output = "results_" + timestamp_file + ".txt"
 
     total = len(unique_urls)
     print(cyan("[*] Checking " + str(total) + " unique URL(s) with " + str(args.threads) + " thread(s), timeout=" + str(args.timeout) + "s"))
