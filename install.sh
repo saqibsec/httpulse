@@ -1,8 +1,8 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────
 # httpulse — Installer Script
-# Author : Saqib Siddique (@saqibsiddique)
-# GitHub : https://github.com/saqibsiddique/httpulse
+# Author : Saqib Siddique (@saqibsec)
+# GitHub : https://github.com/saqibsec/httpulse
 # ─────────────────────────────────────────────────────────────
 
 GREEN='\033[0;32m'
@@ -12,8 +12,8 @@ NC='\033[0m' # No Color
 
 echo -e "${CYAN}"
 echo "  Installing httpulse..."
-echo "  Author : Saqib Siddique (@saqibsiddique)"
-echo "  GitHub : https://github.com/saqibsiddique/httpulse"
+echo "  Author : Saqib Siddique (@saqibsec)"
+echo "  GitHub : https://github.com/saqibsec/httpulse"
 echo -e "${NC}"
 
 # Check Python3

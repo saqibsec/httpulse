@@ -17,8 +17,8 @@
                |_|
 
   HTTP Status Checker  |  Kali Linux Tool  |  v1.0
-  Author : Saqib Siddique (@saqibsiddique)
-  GitHub : https://github.com/saqibsiddique/httpulse
+  Author : Saqib Siddique (@saqibsec)
+  GitHub : https://github.com/saqibsec/httpulse
 
 [*] Loaded 5 URL(s) from 'urls.txt'
 [*] Checking 5 unique URL(s) with 10 thread(s), timeout=5.0s
@@ -71,7 +71,7 @@ SUMMARY
 ### Option 1 — Auto Install (Recommended)
 
 ```bash
-git clone https://github.com/saqibsiddique/httpulse.git
+git clone https://github.com/saqibsec/httpulse.git
 cd httpulse
 chmod +x install.sh
 ./install.sh
@@ -89,7 +89,7 @@ httpulse -h
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/saqibsiddique/httpulse.git
+git clone https://github.com/saqibsec/httpulse.git
 cd httpulse
 
 # 2. Install dependencies
@@ -105,7 +105,7 @@ sudo chmod +x /usr/local/bin/httpulse
 ### Option 3 — Run Directly (No Install)
 
 ```bash
-git clone https://github.com/saqibsiddique/httpulse.git
+git clone https://github.com/saqibsec/httpulse.git
 cd httpulse
 pip3 install -r requirements.txt
 python3 httpulse.py -h
@@ -190,8 +190,8 @@ Results are automatically saved to `results.txt` (or your custom `-o` file). The
 
 ```
 # httpulse results - 2025-01-15 14:32:10
-# Author : Saqib Siddique (@saqibsiddique)
-# GitHub : https://github.com/saqibsiddique/httpulse
+# Author : Saqib Siddique (@saqibsec)
+# GitHub : https://github.com/saqibsec/httpulse
 # Total: 5 | Threads: 10 | Timeout: 5.0s
 --------------------------------------------------------------------------------
 [200]    https://example.com           ->  OK
@@ -234,7 +234,7 @@ sudo rm /usr/local/bin/httpulse
 ## 👤 Author
 
 **Saqib Siddique**
-- GitHub: [@saqibsiddique](https://github.com/saqibsiddique)
+- GitHub: [@saqibsec](https://github.com/saqibsec)
 
 ---
 

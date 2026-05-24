@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # ─────────────────────────────────────────────────────────────
 # Tool     : httpulse
-# Author   : Saqib Siddique (@saqibsiddique)
-# GitHub   : https://github.com/saqibsiddique/httpulse
+# Author   : Saqib Siddique (@saqibsec)
+# GitHub   : https://github.com/saqibsec/httpulse
 # Version  : 1.0
 # License  : MIT
 # Desc     : Fast concurrent HTTP status checker for Kali Linux
@@ -16,8 +16,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 VERSION = "1.0"
-AUTHOR  = "Saqib Siddique (@saqibsiddique)"
-GITHUB  = "https://github.com/saqibsiddique/httpulse"
+AUTHOR  = "Saqib Siddique (@saqibsec)"
+GITHUB  = "https://github.com/saqibsec/httpulse"
 
 try:
     from colorama import Fore, Style, init
@@ -148,7 +148,7 @@ STATUS CODES:
   ERR  ->  Failed/Timeout (red)
 
 AUTHOR:
-  Saqib Siddique — https://github.com/saqibsiddique/httpulse
+  Saqib Siddique — https://github.com/saqibsec/httpulse
         """
     )
 
