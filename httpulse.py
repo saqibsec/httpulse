@@ -191,6 +191,42 @@ AUTHOR:
     return parser
 
 
+# ─── Save Results ──────────────────────────────────────────────────────────────
+
+def save_results(output_file, results, stats, total, threads, timeout, interrupted=False):
+    """Save results to file — works whether completed or interrupted."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    order = ["OK", "REDIRECT", "CLIENT_ERROR", "SERVER_ERROR", "FAILED"]
+
+    with open(output_file, "w") as f:
+        f.write("# httpulse results - " + timestamp + "\n")
+        f.write("# Author : " + AUTHOR + "\n")
+        f.write("# GitHub : " + GITHUB + "\n")
+        if interrupted:
+            f.write("# Status : INTERRUPTED by user (partial results)\n")
+        f.write("# Total checked: " + str(len(results)) + "/" + str(total) + " | Threads: " + str(threads) + " | Timeout: " + str(timeout) + "s\n")
+        f.write("-" * 80 + "\n")
+        results_sorted = sorted(results, key=lambda r: order.index(r[3]))
+        for url, code, reason, category in results_sorted:
+            f.write(format_plain(url, code, reason, category) + "\n")
+        f.write("\n# SUMMARY\n")
+        for key in order:
+            f.write("# " + key + ": " + str(stats[key]) + "\n")
+
+
+def print_summary(results, stats, total):
+    """Print summary to terminal."""
+    checked = len(results)
+    print("\n" + "-" * 80)
+    print(bold("SUMMARY"))
+    print("  " + green("OK (2xx):            " + str(stats["OK"])))
+    print("  " + yellow("Redirects (3xx):     " + str(stats["REDIRECT"])))
+    print("  " + red("Client Errors (4xx): " + str(stats["CLIENT_ERROR"])))
+    print("  " + red("Server Errors (5xx): " + str(stats["SERVER_ERROR"])))
+    print("  " + red("Failed/Timeout:      " + str(stats["FAILED"])))
+    print("  Total checked:       " + str(checked) + "/" + str(total))
+
+
 # ─── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -235,57 +271,48 @@ def main():
             unique_urls.append(u)
 
     total = len(unique_urls)
-    print(cyan("[*] Checking " + str(total) + " unique URL(s) with " + str(args.threads) + " thread(s), timeout=" + str(args.timeout) + "s\n"))
+    print(cyan("[*] Checking " + str(total) + " unique URL(s) with " + str(args.threads) + " thread(s), timeout=" + str(args.timeout) + "s"))
+    print(cyan("[*] Press Ctrl+C anytime to stop and save partial results\n"))
     print(bold("STATUS   URL" + " " * 47 + "REASON"))
     print("-" * 80)
 
     # ── Run checks ──
     results = []
     stats = {"OK": 0, "REDIRECT": 0, "CLIENT_ERROR": 0, "SERVER_ERROR": 0, "FAILED": 0}
+    interrupted = False
 
-    with ThreadPoolExecutor(max_workers=args.threads) as executor:
-        futures = {executor.submit(check_url, url, args.timeout): url for url in unique_urls}
-        for future in as_completed(futures):
-            result = future.result()
-            if result is None:
-                continue
-            url, code, reason, category = result
-            results.append(result)
-            stats[category] += 1
-            print(format_terminal(url, code, reason, category))
+    try:
+        with ThreadPoolExecutor(max_workers=args.threads) as executor:
+            futures = {executor.submit(check_url, url, args.timeout): url for url in unique_urls}
+            for future in as_completed(futures):
+                result = future.result()
+                if result is None:
+                    continue
+                url, code, reason, category = result
+                results.append(result)
+                stats[category] += 1
+                print(format_terminal(url, code, reason, category))
 
-    # ── Summary ──
-    print("\n" + "-" * 80)
-    print(bold("SUMMARY"))
-    ok_count     = stats["OK"]
-    redir_count  = stats["REDIRECT"]
-    client_count = stats["CLIENT_ERROR"]
-    server_count = stats["SERVER_ERROR"]
-    failed_count = stats["FAILED"]
-    print("  " + green("OK (2xx):            " + str(ok_count)))
-    print("  " + yellow("Redirects (3xx):     " + str(redir_count)))
-    print("  " + red("Client Errors (4xx): " + str(client_count)))
-    print("  " + red("Server Errors (5xx): " + str(server_count)))
-    print("  " + red("Failed/Timeout:      " + str(failed_count)))
-    print("  Total checked:       " + str(total))
+    except KeyboardInterrupt:
+        interrupted = True
+        print("\n\n" + yellow("[!] Interrupted by user — saving collected results..."))
 
-    # ── Save to file ──
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(args.output, "w") as f:
-        f.write("# httpulse results - " + timestamp + "\n")
-        f.write("# Author : " + AUTHOR + "\n")
-        f.write("# GitHub : " + GITHUB + "\n")
-        f.write("# Total: " + str(total) + " | Threads: " + str(args.threads) + " | Timeout: " + str(args.timeout) + "s\n")
-        f.write("-" * 80 + "\n")
-        order = ["OK", "REDIRECT", "CLIENT_ERROR", "SERVER_ERROR", "FAILED"]
-        results_sorted = sorted(results, key=lambda r: order.index(r[3]))
-        for url, code, reason, category in results_sorted:
-            f.write(format_plain(url, code, reason, category) + "\n")
-        f.write("\n# SUMMARY\n")
-        for key in order:
-            f.write("# " + key + ": " + str(stats[key]) + "\n")
+    # ── Always print summary and save ──
+    print_summary(results, stats, total)
 
-    print("\n" + cyan("[*] Results saved to: " + args.output))
+    if results:
+        save_results(args.output, results, stats, total, args.threads, args.timeout, interrupted)
+        if interrupted:
+            print("\n" + yellow("[!] Partial results saved to: " + args.output))
+        else:
+            print("\n" + cyan("[*] Results saved to: " + args.output))
+    else:
+        print("\n" + red("[!] No results collected — output file not created."))
+
+    if interrupted:
+        print(yellow("[!] httpulse stopped. Goodbye!\n"))
+    else:
+        print(cyan("[*] httpulse finished. Goodbye!\n"))
 
 
 if __name__ == "__main__":
