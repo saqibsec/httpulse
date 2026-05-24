@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-# ─────────────────────────────────────────────────────────────
+# ----------------------------------------------------------
 # Tool     : httpulse
 # Author   : Saqib Siddique (@saqibsec)
 # GitHub   : https://github.com/saqibsec/httpulse
 # Version  : 1.0
 # License  : MIT
 # Desc     : Fast concurrent HTTP status checker for Kali Linux
-# ─────────────────────────────────────────────────────────────
+# ----------------------------------------------------------
 
 import argparse
 import sys
 import os
+import signal
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -27,7 +28,7 @@ except ImportError:
     COLORAMA = False
 
 
-# ─── Color helpers ─────────────────────────────────────────────────────────────
+# ── Color helpers ──────────────────────────────────────────
 
 def green(text):
     return f"{Fore.GREEN}{text}{Style.RESET_ALL}" if COLORAMA else text
@@ -45,18 +46,14 @@ def bold(text):
     return f"{Style.BRIGHT}{text}{Style.RESET_ALL}" if COLORAMA else text
 
 
-# ─── URL Checker ───────────────────────────────────────────────────────────────
+# ── URL Checker ────────────────────────────────────────────
 
 def check_url(url, timeout):
-    """Check a single URL and return (url, status_code, reason, category)."""
     url = url.strip()
     if not url or url.startswith("#"):
         return None
-
-    # Auto-prefix scheme if missing
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
-
     try:
         response = requests.get(
             url,
@@ -66,7 +63,6 @@ def check_url(url, timeout):
         )
         code = response.status_code
         reason = response.reason
-
         if 200 <= code < 300:
             category = "OK"
         elif 300 <= code < 400:
@@ -75,9 +71,7 @@ def check_url(url, timeout):
             category = "CLIENT_ERROR"
         else:
             category = "SERVER_ERROR"
-
         return (url, code, reason, category)
-
     except requests.exceptions.ConnectionError:
         return (url, 0, "Connection Error", "FAILED")
     except requests.exceptions.Timeout:
@@ -88,13 +82,11 @@ def check_url(url, timeout):
         return (url, 0, str(e)[:60], "FAILED")
 
 
-# ─── Output formatter ──────────────────────────────────────────────────────────
+# ── Output formatters ──────────────────────────────────────
 
 def format_terminal(url, code, reason, category):
-    """Return a color-coded terminal line."""
     tag = f"[{code if code else 'ERR'}]"
     line = f"{tag:<8} {url}  ->  {reason}"
-
     if category == "OK":
         return green(line)
     elif category == "REDIRECT":
@@ -102,14 +94,12 @@ def format_terminal(url, code, reason, category):
     else:
         return red(line)
 
-
 def format_plain(url, code, reason, category):
-    """Return a plain text line for file output."""
     tag = f"[{code if code else 'ERR'}]"
     return f"{tag:<8} {url}  ->  {reason}"
 
 
-# ─── Banner ────────────────────────────────────────────────────────────────────
+# ── Banner ─────────────────────────────────────────────────
 
 def print_banner():
     banner = r"""
@@ -126,12 +116,44 @@ def print_banner():
     print(cyan("  GitHub : " + GITHUB + "\n"))
 
 
-# ─── Argument Parser ───────────────────────────────────────────────────────────
+# ── Save Results ───────────────────────────────────────────
+
+def save_results(output_file, results, stats, total, threads, timeout, interrupted=False):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    order = ["OK", "REDIRECT", "CLIENT_ERROR", "SERVER_ERROR", "FAILED"]
+    with open(output_file, "w") as f:
+        f.write("# httpulse results - " + timestamp + "\n")
+        f.write("# Author : " + AUTHOR + "\n")
+        f.write("# GitHub : " + GITHUB + "\n")
+        if interrupted:
+            f.write("# Status : INTERRUPTED (partial results)\n")
+        f.write("# Checked: " + str(len(results)) + "/" + str(total) + " | Threads: " + str(threads) + " | Timeout: " + str(timeout) + "s\n")
+        f.write("-" * 80 + "\n")
+        results_sorted = sorted(results, key=lambda r: order.index(r[3]))
+        for url, code, reason, category in results_sorted:
+            f.write(format_plain(url, code, reason, category) + "\n")
+        f.write("\n# SUMMARY\n")
+        for key in order:
+            f.write("# " + key + ": " + str(stats[key]) + "\n")
+
+
+def print_summary(results, stats, total):
+    print("\n" + "-" * 80)
+    print(bold("SUMMARY"))
+    print("  " + green("OK (2xx):            " + str(stats["OK"])))
+    print("  " + yellow("Redirects (3xx):     " + str(stats["REDIRECT"])))
+    print("  " + red("Client Errors (4xx): " + str(stats["CLIENT_ERROR"])))
+    print("  " + red("Server Errors (5xx): " + str(stats["SERVER_ERROR"])))
+    print("  " + red("Failed/Timeout:      " + str(stats["FAILED"])))
+    print("  Total checked:       " + str(len(results)) + "/" + str(total))
+
+
+# ── Argument Parser ────────────────────────────────────────
 
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="httpulse",
-        description=bold("httpulse — Fast concurrent HTTP status checker for Kali Linux"),
+        description=bold("httpulse - Fast concurrent HTTP status checker for Kali Linux"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 EXAMPLES:
@@ -148,92 +170,24 @@ STATUS CODES:
   ERR  ->  Failed/Timeout (red)
 
 AUTHOR:
-  Saqib Siddique — https://github.com/saqibsec/httpulse
+  Saqib Siddique - https://github.com/saqibsec/httpulse
         """
     )
-
-    parser.add_argument(
-        "-f", "--file",
-        metavar="FILE",
-        help="Path to a .txt file containing URLs (one per line)"
-    )
-    parser.add_argument(
-        "-u", "--url",
-        metavar="URL",
-        help="A single URL to check directly"
-    )
-    parser.add_argument(
-        "-o", "--output",
-        metavar="FILE",
-        default="results.txt",
-        help="Output file to save results (default: results.txt)"
-    )
-    parser.add_argument(
-        "-t", "--threads",
-        metavar="NUM",
-        type=int,
-        default=10,
-        help="Number of concurrent threads (default: 10)"
-    )
-    parser.add_argument(
-        "--timeout",
-        metavar="SEC",
-        type=float,
-        default=5.0,
-        help="Request timeout in seconds (default: 5)"
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version="httpulse v" + VERSION + " by " + AUTHOR
-    )
-
+    parser.add_argument("-f", "--file", metavar="FILE", help="Path to .txt file with URLs (one per line)")
+    parser.add_argument("-u", "--url", metavar="URL", help="Single URL to check directly")
+    parser.add_argument("-o", "--output", metavar="FILE", default="results.txt", help="Output file (default: results.txt)")
+    parser.add_argument("-t", "--threads", metavar="NUM", type=int, default=10, help="Concurrent threads (default: 10)")
+    parser.add_argument("--timeout", metavar="SEC", type=float, default=5.0, help="Request timeout in seconds (default: 5)")
+    parser.add_argument("--version", action="version", version="httpulse v" + VERSION + " by " + AUTHOR)
     return parser
 
 
-# ─── Save Results ──────────────────────────────────────────────────────────────
-
-def save_results(output_file, results, stats, total, threads, timeout, interrupted=False):
-    """Save results to file — works whether completed or interrupted."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    order = ["OK", "REDIRECT", "CLIENT_ERROR", "SERVER_ERROR", "FAILED"]
-
-    with open(output_file, "w") as f:
-        f.write("# httpulse results - " + timestamp + "\n")
-        f.write("# Author : " + AUTHOR + "\n")
-        f.write("# GitHub : " + GITHUB + "\n")
-        if interrupted:
-            f.write("# Status : INTERRUPTED by user (partial results)\n")
-        f.write("# Total checked: " + str(len(results)) + "/" + str(total) + " | Threads: " + str(threads) + " | Timeout: " + str(timeout) + "s\n")
-        f.write("-" * 80 + "\n")
-        results_sorted = sorted(results, key=lambda r: order.index(r[3]))
-        for url, code, reason, category in results_sorted:
-            f.write(format_plain(url, code, reason, category) + "\n")
-        f.write("\n# SUMMARY\n")
-        for key in order:
-            f.write("# " + key + ": " + str(stats[key]) + "\n")
-
-
-def print_summary(results, stats, total):
-    """Print summary to terminal."""
-    checked = len(results)
-    print("\n" + "-" * 80)
-    print(bold("SUMMARY"))
-    print("  " + green("OK (2xx):            " + str(stats["OK"])))
-    print("  " + yellow("Redirects (3xx):     " + str(stats["REDIRECT"])))
-    print("  " + red("Client Errors (4xx): " + str(stats["CLIENT_ERROR"])))
-    print("  " + red("Server Errors (5xx): " + str(stats["SERVER_ERROR"])))
-    print("  " + red("Failed/Timeout:      " + str(stats["FAILED"])))
-    print("  Total checked:       " + str(checked) + "/" + str(total))
-
-
-# ─── Main ──────────────────────────────────────────────────────────────────────
+# ── Main ───────────────────────────────────────────────────
 
 def main():
     parser = build_parser()
     args = parser.parse_args()
 
-    # Show help if no args given
     if len(sys.argv) == 1:
         print_banner()
         parser.print_help()
@@ -241,9 +195,8 @@ def main():
 
     print_banner()
 
-    # ── Collect URLs ──
+    # Collect URLs
     urls = []
-
     if args.file:
         if not os.path.isfile(args.file):
             print(red("[ERROR] File not found: " + args.file))
@@ -262,7 +215,7 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    # Deduplicate while preserving order
+    # Deduplicate
     seen = set()
     unique_urls = []
     for u in urls:
@@ -276,28 +229,41 @@ def main():
     print(bold("STATUS   URL" + " " * 47 + "REASON"))
     print("-" * 80)
 
-    # ── Run checks ──
     results = []
     stats = {"OK": 0, "REDIRECT": 0, "CLIENT_ERROR": 0, "SERVER_ERROR": 0, "FAILED": 0}
     interrupted = False
 
+    # Use a flag instead of exception to avoid Python 3.13 threading shutdown error
+    stop_flag = {"stop": False}
+
+    def handle_interrupt(sig, frame):
+        stop_flag["stop"] = True
+
+    signal.signal(signal.SIGINT, handle_interrupt)
+
+    # Create executor with daemon threads so they die cleanly on Ctrl+C
+    executor = ThreadPoolExecutor(max_workers=args.threads, thread_name_prefix="httpulse")
+
     try:
-        with ThreadPoolExecutor(max_workers=args.threads) as executor:
-            futures = {executor.submit(check_url, url, args.timeout): url for url in unique_urls}
-            for future in as_completed(futures):
-                result = future.result()
-                if result is None:
-                    continue
-                url, code, reason, category = result
-                results.append(result)
-                stats[category] += 1
-                print(format_terminal(url, code, reason, category))
+        futures = {executor.submit(check_url, url, args.timeout): url for url in unique_urls}
+        for future in as_completed(futures):
+            if stop_flag["stop"]:
+                interrupted = True
+                break
+            result = future.result()
+            if result is None:
+                continue
+            url, code, reason, category = result
+            results.append(result)
+            stats[category] += 1
+            print(format_terminal(url, code, reason, category))
+    finally:
+        # cancel_futures=True drops pending tasks immediately
+        executor.shutdown(wait=False, cancel_futures=True)
 
-    except KeyboardInterrupt:
-        interrupted = True
-        print("\n\n" + yellow("[!] Interrupted by user — saving collected results..."))
+    if interrupted:
+        print("\n\n" + yellow("[!] Interrupted — saving collected results..."))
 
-    # ── Always print summary and save ──
     print_summary(results, stats, total)
 
     if results:
