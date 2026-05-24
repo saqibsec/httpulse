@@ -1,14 +1,14 @@
 #!/bin/bash
-# ─────────────────────────────────────────────────────────────
-# httpulse — Installer Script
+# ----------------------------------------------------------
+# httpulse - Installer Script
 # Author : Saqib Siddique (@saqibsec)
 # GitHub : https://github.com/saqibsec/httpulse
-# ─────────────────────────────────────────────────────────────
+# ----------------------------------------------------------
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 echo -e "${CYAN}"
 echo "  Installing httpulse..."
@@ -24,13 +24,13 @@ fi
 
 # Check pip3
 if ! command -v pip3 &> /dev/null; then
-    echo -e "${RED}[ERROR] pip3 not found. Install it with: sudo apt install python3-pip${NC}"
+    echo -e "${RED}[ERROR] pip3 not found. Run: sudo apt install python3-pip${NC}"
     exit 1
 fi
 
 # Install dependencies
 echo -e "${CYAN}[*] Installing dependencies...${NC}"
-pip3 install -r requirements.txt --quiet
+pip3 install -r requirements.txt --break-system-packages --quiet
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}[ERROR] Failed to install dependencies.${NC}"
